@@ -26,7 +26,6 @@ impl Screen {
             surface,
             background_color: wgpu::Color::BLACK,
         };
-
         state.configure_surface();
 
         state
@@ -41,6 +40,9 @@ impl Screen {
     }
     pub fn get_height(&self) -> u32 {
         self.size.height
+    }
+    pub fn get_ratio(&self) -> f32 {
+        return self.size.width as f32 / self.size.height as f32
     }
 
     pub fn set_bg_color(&mut self, color: wgpu::Color) {

@@ -24,7 +24,8 @@ impl ApplicationHandler for App {
                 .unwrap(),
         );
 
-        let state = State::new(window.clone(), self.resources.clone());
+        let mut state = State::new(window.clone(), self.resources.clone());
+        state.render();
         self.state = Some(state);
 
         window.request_redraw();
