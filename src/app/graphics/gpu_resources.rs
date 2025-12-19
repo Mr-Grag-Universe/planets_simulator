@@ -1,10 +1,58 @@
-use wgpu::{self, ColorWrites, PipelineLayout, ShaderModule};
+use std::sync::Arc;
+
+use wgpu::{self, ColorWrites, PipelineLayout, ShaderModule, util::DeviceExt};
+use bytemuck::{Pod, Zeroable};
 
 pub struct GPU_Resources {
     pub instance: wgpu::Instance,
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
+
+    pub buffer_fabric: BufferFabric,
+}
+
+pub struct BufferFabric {
+    device: Arc<wgpu::Device>
+}
+impl BufferFabric {
+    pub fn create_buffer<T>(&self, data: &[T], label: &str, usage_flags: wgpu::BufferUsages) -> wgpu::Buffer 
+        where T: Pod + Zeroable
+    {
+        self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::cast_slice(&data),
+            usage: usage_flags,
+        })
+    }
+    
+    pub fn create_vertex_buffer<T>(&self, vertices: &[T], label: Option<&str>) -> wgpu::Buffer 
+        where T: Pod + Zeroable
+    {
+        self.create_buffer(
+            vertices, 
+            label.unwrap_or("Vertex Buffer"), 
+            wgpu::BufferUsages::VERTEX
+        )
+    }
+    pub fn create_index_buffer<T>(&self, indices: &[T], label: Option<&str>) -> wgpu::Buffer 
+        where T: Pod + Zeroable
+    {
+        self.create_buffer(
+            indices, 
+            label.unwrap_or("Index Buffer"), 
+            wgpu::BufferUsages::INDEX
+        )
+    }
+    pub fn create_uniform_buffer<T>(&self, data: &[T], label: Option<&str>) -> wgpu::Buffer 
+        where T: Pod + Zeroable
+    {
+        self.create_buffer(
+            data,
+            label.unwrap_or("Uniform Buffer"),
+            wgpu::BufferUsages::UNIFORM,
+        )
+    }
 }
 
 impl GPU_Resources {
@@ -20,6 +68,8 @@ impl GPU_Resources {
             .unwrap();
 
         GPU_Resources {
+            buffer_fabric: BufferFabric { device: Arc::new(device.clone()) },
+            
             instance,
             adapter,
             device,

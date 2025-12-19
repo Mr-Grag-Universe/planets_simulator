@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use wgpu::naga::common::wgsl;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 use crate::app::graphics::gpu_resources::GPU_Resources;
@@ -14,7 +15,7 @@ struct Vertex {
     _pos: [f32; 4],
 }
 
-fn vertex(pos: [i8; 3], x: [i8; 2]) -> Vertex {
+fn vertex(pos: [i8; 3]) -> Vertex {
     Vertex {
         _pos: [pos[0] as f32, pos[1] as f32, pos[2] as f32, 1.0],
     }
@@ -26,76 +27,30 @@ struct Cube {
 }
 
 impl Cube {
-    // pub fn create_v_i(&self) -> (Vec<Vertex>, Vec<u16>) {
-    //     let vertices = [
-    //         // bottom
-    //         vertex([-1, -1, -1]),
-    //         vertex([1, -1, -1]),
-    //         vertex([-1, 1, -1]),
-    //         vertex([1, 1, -1]),
-    //         // top
-    //         vertex([-1, -1, 1]),
-    //         vertex([1, -1, 1]),
-    //         vertex([-1, 1, 1]),
-    //         vertex([1, 1, 1]),
-    //     ];
+    pub fn create_v_i(&self) -> (Vec<Vertex>, Vec<u16>) {
+        let vertices = [
+            // bottom
+            vertex([-1, -1, -1]),
+            vertex([1, -1, -1]),
+            vertex([-1, 1, -1]),
+            vertex([1, 1, -1]),
+            // top
+            vertex([-1, -1, 1]),
+            vertex([1, -1, 1]),
+            vertex([-1, 1, 1]),
+            vertex([1, 1, 1]),
+        ];
 
-    //     let indices: &[u16] = &[
-    //         0, 1, 3, 0, 2, 3, // bottom (xy-plane)
-    //         4, 5, 7, 4, 6, 7, // top (xy-plane + 1)
-    //         0, 1, 5, 0, 4, 5, // (xz-plane)
-    //         2, 3, 7, 2, 6, 7, // (xz-plane + 1)
-    //         0, 2, 6, 0, 4, 6, // (yz-plane)
-    //         1, 3, 7, 1, 5, 7, // (yz-plane + 1)
-    //     ];
+        let indices: &[u16] = &[
+            0, 1, 3, 0, 2, 3, // bottom (xy-plane)
+            4, 5, 7, 4, 6, 7, // top (xy-plane + 1)
+            0, 1, 5, 0, 4, 5, // (xz-plane)
+            2, 3, 7, 2, 6, 7, // (xz-plane + 1)
+            0, 2, 6, 0, 4, 6, // (yz-plane)
+            1, 3, 7, 1, 5, 7, // (yz-plane + 1)
+        ];
         
-    //     (vertices.to_vec(), indices.to_vec())
-    // }
-
-    fn create_v_i(&self) -> (Vec<Vertex>, Vec<u16>) {
-        let vertex_data = [
-            // top (0, 0, 1)
-            vertex([-1, -1, 1], [0, 0]),
-            vertex([1, -1, 1], [1, 0]),
-            vertex([1, 1, 1], [1, 1]),
-            vertex([-1, 1, 1], [0, 1]),
-            // bottom (0, 0, -1)
-            vertex([-1, 1, -1], [1, 0]),
-            vertex([1, 1, -1], [0, 0]),
-            vertex([1, -1, -1], [0, 1]),
-            vertex([-1, -1, -1], [1, 1]),
-            // right (1, 0, 0)
-            vertex([1, -1, -1], [0, 0]),
-            vertex([1, 1, -1], [1, 0]),
-            vertex([1, 1, 1], [1, 1]),
-            vertex([1, -1, 1], [0, 1]),
-            // left (-1, 0, 0)
-            vertex([-1, -1, 1], [1, 0]),
-            vertex([-1, 1, 1], [0, 0]),
-            vertex([-1, 1, -1], [0, 1]),
-            vertex([-1, -1, -1], [1, 1]),
-            // front (0, 1, 0)
-            vertex([1, 1, -1], [1, 0]),
-            vertex([-1, 1, -1], [0, 0]),
-            vertex([-1, 1, 1], [0, 1]),
-            vertex([1, 1, 1], [1, 1]),
-            // back (0, -1, 0)
-            vertex([1, -1, 1], [0, 0]),
-            vertex([-1, -1, 1], [1, 0]),
-            vertex([-1, -1, -1], [1, 1]),
-            vertex([1, -1, -1], [0, 1]),
-        ];
-
-        let index_data: &[u16] = &[
-            0, 1, 2, 2, 3, 0, // top
-            4, 5, 6, 6, 7, 4, // bottom
-            8, 9, 10, 10, 11, 8, // right
-            12, 13, 14, 14, 15, 12, // left
-            16, 17, 18, 18, 19, 16, // front
-            20, 21, 22, 22, 23, 20, // back
-        ];
-
-        (vertex_data.to_vec(), index_data.to_vec())
+        (vertices.to_vec(), indices.to_vec())
     }
 }
 
@@ -116,7 +71,7 @@ pub struct StateCube {
 
 
 fn generate_matrix(aspect_ratio: f32) -> glam::Mat4 {
-    let projection = glam::Mat4::perspective_rh(PI as f32 / 4.0, aspect_ratio, 1.0, 10.0);
+    let projection = glam::Mat4::perspective_rh(PI as f32 / 4.0, aspect_ratio, 1.0, 100.0);
     let view = glam::Mat4::look_at_rh(
         glam::Vec3::new(1.5f32, -5.0, 3.0),
         glam::Vec3::ZERO,
@@ -143,16 +98,8 @@ impl StateCube {
         let (vertex_data, index_data) = cube.create_v_i();
 
         // create buffers for vertices and indices to pass to shading phase
-        let vertex_buf = resources.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&vertex_data),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buf = resources.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&index_data),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        let vertex_buf = resources.buffer_fabric.create_vertex_buffer(&vertex_data, None);
+        let index_buf = resources.buffer_fabric.create_index_buffer(&index_data, None);
 
         // Create pipeline layout
         let bind_group_layout = resources.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -178,11 +125,11 @@ impl StateCube {
 
         let mx_total = generate_matrix(screen.get_ratio());
         let mx_ref: &[f32; 16] = mx_total.as_ref();
-        let uniform_buf = resources.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Uniform Buffer"),
-            contents: bytemuck::cast_slice(mx_ref),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let uniform_buf = resources.buffer_fabric.create_buffer(
+            mx_ref, 
+            "Uniform Buffer", 
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
+        );
         // Create bind group
         let bind_group = resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &bind_group_layout,
@@ -225,7 +172,7 @@ impl StateCube {
                 targets: &[Some(screen.surface.get_format().into())],
             }),
             primitive: wgpu::PrimitiveState {
-                cull_mode: Some(wgpu::Face::Back),
+                cull_mode: None, // Some(wgpu::Face::Back),
                 ..Default::default()
             },
             depth_stencil: None,
