@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use wgpu::PipelineLayout;
+use wgpu::{Buffer, PipelineLayout};
 use wgpu::naga::common::wgsl;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
@@ -18,6 +18,16 @@ use crate::physics::ball::Ball;
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Vertex {
     _pos: [f32; 4],
+}
+
+struct Entity {
+    mx_world: glam::Mat4,
+    color: wgpu::Color,
+    vertex_buf: wgpu::Buffer,
+    index_buf: wgpu::Buffer,
+    index_format: wgpu::IndexFormat,
+    index_count: usize,
+    uniform_offset: wgpu::DynamicOffset,
 }
 
 struct GraphicsTools {
@@ -69,6 +79,22 @@ impl StateBall {
         state
     }
 
+    fn create_surface_entity(&self) -> Entity {
+        let (vertices, indices) = self.get_vertices_indices_surface();
+        let v_buf = self.resources.buffer_fabric.create_vertex_buffer(&vertices, None);
+        let i_buf = self.resources.buffer_fabric.create_index_buffer(&indices, None);
+
+        Entity {
+            mx_world: generate_transform(self.screen.get_ratio()),
+            color: wgpu::Color::WHITE,
+            vertex_buf: v_buf,
+            index_buf: i_buf,
+            index_format: wgpu::IndexFormat::Uint16,
+            index_count: indices.len(),
+            uniform_offset: 0
+        }
+    }
+
     pub fn init(&mut self) {
         self.gtools.init(self.resources.clone());
 
@@ -111,6 +137,7 @@ impl StateBall {
             push_constant_ranges: &[],
         });
 
+        
         let mx_total = generate_transform(self.screen.get_ratio());
         let mx_ref: &[f32; 16] = mx_total.as_ref();
         let uniform_buf = self.resources.buffer_fabric.create_buffer(
@@ -118,6 +145,7 @@ impl StateBall {
             "Uniform Buffer", 
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
         );
+
         // Create bind group
         let bind_group = self.resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &bind_group_layout,
