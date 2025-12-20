@@ -25,7 +25,7 @@ struct GraphicsTools {
 
     vertex_buf: Option<wgpu::Buffer>,
     index_buf: Option<wgpu::Buffer>,
-    index_count: Option<usize>,
+    pub index_count: usize,
     bind_group: Option<wgpu::BindGroup>,
     uniform_buf: Option<wgpu::Buffer>,
     pipeline_layout: Option<wgpu::PipelineLayout>,
@@ -73,7 +73,7 @@ impl StateBall {
         self.gtools.init(self.resources.clone());
 
         let vertex_size = size_of::<Vertex>();
-        let (vertices, indices) = self.get_vertices_indices();
+        let (vertices, indices) = self.get_vertices_indices_surface();
         let vertex_buf = self.resources.buffer_fabric.create_vertex_buffer(&vertices, None);
         let index_buf = self.resources.buffer_fabric.create_index_buffer(&indices, None);
         let vertex_buffers = [wgpu::VertexBufferLayout {
@@ -87,6 +87,8 @@ impl StateBall {
                 },
             ],
         }];
+
+        self.get_vertices_indices_edges();
 
         let bind_group_layout = self.resources.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
@@ -130,14 +132,15 @@ impl StateBall {
 
         let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/ball.wgsl"));
         
+        self.gtools.set_vertex_buffer(vertex_buf);
+        self.gtools.set_index_buffer(index_buf);
+        self.gtools.set_bind_group(bind_group);
         self.gtools.set_pipeline_layout(pipeline_layout);
-
+        self.gtools.index_count = indices.len();
         self.gtools.init_pipeline(shader, &vertex_buffers, &[Some(self.screen.surface.get_format().into())]);
     }
 
-    pub fn get_vertices_indices(&self) -> (Vec<Vertex>, Vec<u16>) {
-        let mesh = self.ball.get_mesh();
-
+    fn transform_mesh_to_vertices_indices(mesh: Mesh) -> (Vec<Vertex>, Vec<u16>) {
         let vertices = mesh.vertices.iter().map(|v| {
             Vertex { _pos: [v[0] as f32, v[1] as f32, v[2] as f32, 1.0] }
         }).collect();
@@ -152,6 +155,16 @@ impl StateBall {
         (vertices, indices)
     }
 
+    pub fn get_vertices_indices_surface(&self) -> (Vec<Vertex>, Vec<u16>) {
+        let mesh = self.ball.get_surface_mesh();
+        Self::transform_mesh_to_vertices_indices(mesh)
+    }
+
+    pub fn get_vertices_indices_edges(&self) -> (Vec<Vertex>, Vec<u16>) {
+        let mesh = self.ball.get_edges_mesh(0.1);
+        Self::transform_mesh_to_vertices_indices(mesh)
+    }
+
     pub fn render(&mut self) {
         self.gtools.render(&self.screen)
     }
@@ -164,6 +177,15 @@ impl GraphicsTools {
 
     pub fn set_pipeline_layout(&mut self, pipeline_layout: wgpu::PipelineLayout) {
         self.pipeline_layout = Some(pipeline_layout);
+    }
+    pub fn set_bind_group(&mut self, bind_group: wgpu::BindGroup) {
+        self.bind_group = Some(bind_group);
+    }
+    pub fn set_index_buffer(&mut self, buf: wgpu::Buffer) {
+        self.index_buf = Some(buf);
+    }
+    pub fn set_vertex_buffer(&mut self, buf: wgpu::Buffer) {
+        self.vertex_buf = Some(buf);
     }
 
     pub fn init_pipeline(&mut self, 
@@ -230,13 +252,13 @@ impl GraphicsTools {
                 occlusion_query_set: None,
             });
             rpass.push_debug_group("Prepare data for draw.");
-            // rpass.set_pipeline(&self.pipeline);
-            // rpass.set_bind_group(0, &self.bind_group, &[]);
-            // rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
-            // rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
+            rpass.set_pipeline(&self.pipeline.as_ref().unwrap());
+            rpass.set_bind_group(0, &self.bind_group, &[]);
+            rpass.set_index_buffer(self.index_buf.as_ref().unwrap().slice(..), wgpu::IndexFormat::Uint16);
+            rpass.set_vertex_buffer(0, self.vertex_buf.as_ref().unwrap().slice(..));
             rpass.pop_debug_group();
-            // rpass.insert_debug_marker("Draw!");
-            // rpass.draw_indexed(0..self.index_count as u32, 0, 0..1);
+            rpass.insert_debug_marker("Draw!");
+            rpass.draw_indexed(0..self.index_count as u32, 0, 0..1);
         }
 
         self.resources
@@ -253,7 +275,7 @@ impl Default for GraphicsTools {
             resources: None,
             vertex_buf: None,
             index_buf: None,
-            index_count: None,
+            index_count: 0,
             bind_group: None,
             uniform_buf: None,
             pipeline: None,

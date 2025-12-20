@@ -2,6 +2,7 @@ use std::f64::consts::PI;
 
 use nalgebra::{Vector3, Rotation3};
 use convexhull3d::{ConvexHull3D, Vertex};
+use std::collections::HashSet;
 
 pub fn quick_hull(vertices: &Vec<Point3>) -> Vec<[usize; 3]> {
     let vertices: Vec<Vertex> = vertices.iter()
@@ -36,8 +37,42 @@ pub struct Mesh {
     pub indices: Vec<[usize; 3]>,
 }
 
+impl Mesh {
+    pub fn get_edges(&self) -> Vec<(usize, usize)> {
+        let mut edges = HashSet::new();
+
+        for triangle in &self.indices {
+            let (a, b, c) = (triangle[0], triangle[1], triangle[2]);
+            
+            edges.insert((a.min(b), a.max(b)));
+            edges.insert((b.min(c), b.max(c)));
+            edges.insert((a.min(c), a.max(c)));
+        }
+
+        edges.into_iter().collect()
+    }
+
+    pub fn get_center(&self) -> Point3 {
+        let count = self.vertices.len();
+        assert_ne!(count, 0, "count of points must be > 0");
+        let sum = self.vertices.iter().fold(Point3::new(0.0, 0.0, 0.0), |acc, &point| {
+            Point3::new(
+                acc.x + point.x,
+                acc.y + point.y,
+                acc.z + point.z,
+            )
+        });
+        Point3::new(
+            sum.x / count as f64,
+            sum.y / count as f64,
+            sum.z / count as f64,
+        )
+    }
+}
+
 pub trait Geometry {
-    fn get_mesh(&self) -> Mesh;
+    fn get_surface_mesh(&self) -> Mesh;
+    fn get_edges_mesh(&self, bold: f32) -> Mesh;
     fn minimal_bounding_volume(&self) -> MBV;
 }
 
@@ -61,8 +96,23 @@ impl GraphicsGeometry {
     }
 
     pub fn get_surface(&self) -> Mesh {
-        let base = self.geometry.get_mesh();
+        let base = self.geometry.get_surface_mesh();
 
+        let transformed_vertices: Vec<Point3> = base.vertices.iter().map(|v| {
+            let scaled = *v * self.scale;
+            let rotated = self.rotation * scaled;
+            rotated + self.center
+        }).collect();
+
+        Mesh {
+            vertices: transformed_vertices,
+            indices: base.indices.clone(),
+        }
+    }
+
+    pub fn get_edges(&self, bold: f32) -> Mesh {
+        let base = self.geometry.get_edges_mesh(bold);
+        
         let transformed_vertices: Vec<Point3> = base.vertices.iter().map(|v| {
             let scaled = *v * self.scale;
             let rotated = self.rotation * scaled;
@@ -78,6 +128,14 @@ impl GraphicsGeometry {
     pub fn minimal_bounding_volume(&self) -> MBV {
         self.geometry.minimal_bounding_volume()
     }
+
+    // pub fn get_light_per_polygon(&self, light_sources: Vec<Point3>) -> Vec<f32> {
+    //     let mesh = self.geometry.get_mesh();
+    //     let (vertices, indices) = (mesh.vertices, mesh.indices);
+    //     let n_triangles = indices.len();
+    //     let mut light = Vec::with_capacity(n_triangles);
+
+    // }
 }
 
 pub fn generate_transform(aspect_ratio: f32) -> glam::Mat4 {
