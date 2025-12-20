@@ -48,6 +48,9 @@ impl Screen {
     pub fn set_bg_color(&mut self, color: wgpu::Color) {
         self.background_color = color
     }
+    pub fn get_bg_color(&self) -> wgpu::Color {
+        self.background_color
+    }
 
     pub fn configure_surface(&self) {
         let surface_config = wgpu::SurfaceConfiguration {

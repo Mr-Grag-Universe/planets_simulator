@@ -3,7 +3,7 @@ use std::f64::consts::PI;
 use nalgebra::{Vector3, Rotation3};
 use convexhull3d::{ConvexHull3D, Vertex};
 
-fn quick_hull(vertices: &Vec<Point3>) -> Vec<[usize; 3]> {
+pub fn quick_hull(vertices: &Vec<Point3>) -> Vec<[usize; 3]> {
     let vertices: Vec<Vertex> = vertices.iter()
         .map(|v| Vertex::new(v.x, v.y, v.z))
         .collect();
@@ -37,53 +37,8 @@ pub struct Mesh {
 }
 
 pub trait Geometry {
-    fn get_surface(&self) -> Mesh;
+    fn get_mesh(&self) -> Mesh;
     fn minimal_bounding_volume(&self) -> MBV;
-}
-
-pub struct Ball {
-    pub radius: f64,
-}
-
-impl Ball {
-    pub fn new(radius: f64) -> Self {
-        Self { radius }
-    }
-
-    fn fibonacci_sphere_points(n: usize, r: f64) -> Vec<Point3> {
-        let golden_ratio = (1.0 + 5f64.sqrt()) / 2.0;
-        let mut pts = Vec::with_capacity(n);
-
-        for i in 0..n {
-            let z = 1.0 - 2.0 * ((i as f64) + 0.5) / n as f64;
-            let theta = z.acos();
-            let phi = 2.0 * PI * (((i as f64) + 0.5) * golden_ratio).fract();
-
-            let r_xy = (1.0 - z * z).sqrt();
-            let x = r_xy * phi.cos();
-            let y = r_xy * phi.sin();
-
-            pts.push(Point3::new(x, y, z) * r);
-        }
-        pts
-    }
-
-    fn build_mesh(vertices: Vec<Point3>) -> Mesh {
-        let indices = quick_hull(&vertices);
-        Mesh { vertices, indices }
-    }
-}
-
-impl Geometry for Ball {
-    fn get_surface(&self) -> Mesh {
-        let verts = Self::fibonacci_sphere_points(100, self.radius);
-        Self::build_mesh(verts)
-    }
-
-    fn minimal_bounding_volume(&self) -> MBV {
-        let side = 2.0 * self.radius;
-        MBV(side, side, side)
-    }
 }
 
 
@@ -106,7 +61,7 @@ impl GraphicsGeometry {
     }
 
     pub fn get_surface(&self) -> Mesh {
-        let base = self.geometry.get_surface();
+        let base = self.geometry.get_mesh();
 
         let transformed_vertices: Vec<Point3> = base.vertices.iter().map(|v| {
             let scaled = *v * self.scale;
@@ -123,4 +78,14 @@ impl GraphicsGeometry {
     pub fn minimal_bounding_volume(&self) -> MBV {
         self.geometry.minimal_bounding_volume()
     }
+}
+
+pub fn generate_transform(aspect_ratio: f32) -> glam::Mat4 {
+    let projection = glam::Mat4::perspective_rh(PI as f32 / 4.0, aspect_ratio, 1.0, 100.0);
+    let view = glam::Mat4::look_at_rh(
+        glam::Vec3::new(1.5f32, -5.0, 3.0),
+        glam::Vec3::ZERO,
+        glam::Vec3::Z,
+    );
+    projection * view
 }

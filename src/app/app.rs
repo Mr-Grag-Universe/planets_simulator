@@ -7,7 +7,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::app::{graphics::gpu_resources::GPU_Resources, states::cube::StateCube as State};
+use crate::app::{graphics::gpu_resources::GPU_Resources, states::ball::StateBall as State};
 
 #[derive(Default)]
 pub struct App {

@@ -4,6 +4,7 @@ use wgpu::util::DeviceExt;
 use winit::window::Window;
 use crate::app::graphics::gpu_resources::GPU_Resources;
 use crate::app::graphics::screen::Screen;
+use crate::physics::geometry::generate_transform;
 use bytemuck::{Pod, Zeroable};
 use glam;
 use std::f64::consts::PI;
@@ -70,17 +71,6 @@ pub struct StateCube {
 }
 
 
-fn generate_matrix(aspect_ratio: f32) -> glam::Mat4 {
-    let projection = glam::Mat4::perspective_rh(PI as f32 / 4.0, aspect_ratio, 1.0, 100.0);
-    let view = glam::Mat4::look_at_rh(
-        glam::Vec3::new(1.5f32, -5.0, 3.0),
-        glam::Vec3::ZERO,
-        glam::Vec3::Z,
-    );
-    projection * view
-}
-
-
 impl StateCube {
     pub fn configure_surface(&self) {
         self.screen.configure_surface();
@@ -123,7 +113,7 @@ impl StateCube {
             push_constant_ranges: &[],
         });
 
-        let mx_total = generate_matrix(screen.get_ratio());
+        let mx_total = generate_transform(screen.get_ratio());
         let mx_ref: &[f32; 16] = mx_total.as_ref();
         let uniform_buf = resources.buffer_fabric.create_buffer(
             mx_ref, 
