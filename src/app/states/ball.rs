@@ -19,6 +19,7 @@ use crate::physics::ball::Ball;
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Vertex {
     _pos: [f32; 4],
+    _col: [f32; 4],
 }
 
 struct Entity {
@@ -61,6 +62,7 @@ impl StateBall {
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         self.screen.resize(new_size);
+        self.init();
     }
 
     pub fn new(window: Arc<Window>, resources: Arc<GPU_Resources>) -> StateBall {
@@ -83,7 +85,19 @@ impl StateBall {
         state
     }
 
-    fn create_entity(&self, vertices: Vec<Vertex>, indices: Vec<u16>, color: wgpu::Color) -> Entity {
+    fn create_entity(&self, color: wgpu::Color) -> Entity {
+        let (vertices_s, indices_s) = self.get_vertices_indices_surface();
+        let (vertices_e, indices_e) = self.get_vertices_indices_edges();
+
+        let length_s = vertices_s.len() as u16;
+        let vertices: Vec<Vertex> = [vertices_s, vertices_e].concat();
+        let indices: Vec<u16> = indices_s
+            .iter()
+            .cloned()
+            .chain(indices_e.iter().map(|&x| x + length_s))
+            .collect();
+        assert_eq!(indices_s.len() + indices_e.len(), indices.len(), "Lengthes must be the same!");
+
         let v_buf = self.resources.buffer_fabric.create_vertex_buffer(&vertices, None);
         let i_buf = self.resources.buffer_fabric.create_index_buffer(&indices, None);
         let mx_total = generate_transform(self.screen.get_ratio());
@@ -98,14 +112,6 @@ impl StateBall {
             uniform_offset: 0
         }
     }
-    fn create_surface_entity(&self) -> Entity {
-        let (vertices, indices) = self.get_vertices_indices_surface();
-        self.create_entity(vertices, indices, wgpu::Color::WHITE)
-    }
-    fn create_edges_entity(&self) -> Entity {
-        let (vertices, indices) = self.get_vertices_indices_edges();
-        self.create_entity(vertices, indices, wgpu::Color::BLUE)
-    }
 
     pub fn init(&mut self) {
         self.gtools.init(self.resources.clone());
@@ -113,13 +119,8 @@ impl StateBall {
         // let (vertices, indices) = self.get_vertices_indices_surface();
         // let vertex_buf = self.resources.buffer_fabric.create_vertex_buffer(&vertices, None);
         // let index_buf = self.resources.buffer_fabric.create_index_buffer(&indices, None);
-        let mut surface_entity = self.create_surface_entity();
-        let mut edges_entity = self.create_edges_entity();
-        surface_entity.uniform_offset = 1*64;
-        edges_entity  .uniform_offset = 2*64;
-
-        self.gtools.push_entity(surface_entity);
-        self.gtools.push_entity(edges_entity);
+        let entity = self.create_entity(wgpu::Color::WHITE);
+        self.gtools.push_entity(entity);
 
         let bind_group_layout = self.resources.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
@@ -186,6 +187,11 @@ impl StateBall {
                     offset: 0,
                     shader_location: 0,
                 },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                },
             ],
         }];
 
@@ -196,9 +202,12 @@ impl StateBall {
         self.gtools.init_pipeline(shader, &vertex_buffers, &[Some(self.screen.surface.get_format().into())]);
     }
 
-    fn transform_mesh_to_vertices_indices(mesh: Mesh) -> (Vec<Vertex>, Vec<u16>) {
+    fn transform_mesh_to_vertices_indices(mesh: Mesh, color: wgpu::Color) -> (Vec<Vertex>, Vec<u16>) {
         let vertices = mesh.vertices.iter().map(|v| {
-            Vertex { _pos: [v[0] as f32, v[1] as f32, v[2] as f32, 1.0] }
+            Vertex { 
+                _pos: [v[0] as f32, v[1] as f32, v[2] as f32, 1.0], 
+                _col: [color.r as f32, color.g as f32, color.b as f32, color.a as f32],
+            }
         }).collect();
 
         let mut indices = Vec::new();
@@ -213,12 +222,12 @@ impl StateBall {
 
     pub fn get_vertices_indices_surface(&self) -> (Vec<Vertex>, Vec<u16>) {
         let mesh = self.ball.get_surface_mesh();
-        Self::transform_mesh_to_vertices_indices(mesh)
+        Self::transform_mesh_to_vertices_indices(mesh, wgpu::Color{r:0.0, g:1.0, b:1.0, a:1.0})
     }
 
     pub fn get_vertices_indices_edges(&self) -> (Vec<Vertex>, Vec<u16>) {
         let mesh = self.ball.get_edges_mesh(0.01);
-        Self::transform_mesh_to_vertices_indices(mesh)
+        Self::transform_mesh_to_vertices_indices(mesh, wgpu::Color{r:1.0, g:0.0, b:1.0, a:1.0})
     }
 
     pub fn render(&mut self) {
@@ -270,7 +279,13 @@ impl GraphicsTools {
                     cull_mode: None, // Some(wgpu::Face::Back),
                     ..Default::default()
                 },
-                depth_stencil: None,
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
                 multisample: wgpu::MultisampleState::default(),
                 multiview: None,
                 cache: None,
@@ -330,25 +345,25 @@ impl GraphicsTools {
             rpass.set_vertex_buffer(0, self.entities[0].vertex_buf.slice(..));
             rpass.draw_indexed(0..self.entities[0].index_count as u32, 0, 0..1);
             
-            let bind_group = screen.resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &self.bind_group_layout.clone().unwrap(),
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: self.uniform_buf_transform.clone().unwrap().as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: self.uniform_buf_flag_true.clone().unwrap().as_entire_binding(),
-                    },
-                ],
-                label: None,
-            });
+            // let bind_group = screen.resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            //     layout: &self.bind_group_layout.clone().unwrap(),
+            //     entries: &[
+            //         wgpu::BindGroupEntry {
+            //             binding: 0,
+            //             resource: self.uniform_buf_transform.clone().unwrap().as_entire_binding(),
+            //         },
+            //         wgpu::BindGroupEntry {
+            //             binding: 1,
+            //             resource: self.uniform_buf_flag_true.clone().unwrap().as_entire_binding(),
+            //         },
+            //     ],
+            //     label: None,
+            // });
 
-            rpass.set_bind_group(0, &bind_group, &[]);
-            rpass.set_index_buffer(self.entities[1].index_buf.slice(..), wgpu::IndexFormat::Uint16);
-            rpass.set_vertex_buffer(0, self.entities[1].vertex_buf.slice(..));
-            rpass.draw_indexed(0..self.entities[1].index_count as u32, 0, 0..1);
+            // rpass.set_bind_group(0, &bind_group, &[]);
+            // rpass.set_index_buffer(self.entities[1].index_buf.slice(..), wgpu::IndexFormat::Uint16);
+            // rpass.set_vertex_buffer(0, self.entities[1].vertex_buf.slice(..));
+            // rpass.draw_indexed(0..self.entities[1].index_count as u32, 0, 0..1);
 
             rpass.pop_debug_group();
             rpass.insert_debug_marker("Draw!");

@@ -53,11 +53,13 @@ impl Screen {
     }
 
     pub fn configure_surface(&self) {
+        let format = self.surface.get_format();
+        let format = wgpu::TextureFormat::Depth32Float;
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: self.surface.get_format(),
+            format: format.clone(),
             // Request compatibility with the sRGB-format texture view we‘re going to create later.
-            view_formats: vec![self.surface.get_format().add_srgb_suffix()],
+            view_formats: vec![format.add_srgb_suffix()],
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             width: self.size.width,
             height: self.size.height,
