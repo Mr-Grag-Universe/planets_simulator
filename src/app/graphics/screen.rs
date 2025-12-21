@@ -54,7 +54,7 @@ impl Screen {
 
     pub fn configure_surface(&self) {
         let format = self.surface.get_format();
-        let format = wgpu::TextureFormat::Depth32Float;
+        // let format = wgpu::TextureFormat::Depth32Float;
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: format.clone(),
