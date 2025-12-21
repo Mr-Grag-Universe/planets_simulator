@@ -38,15 +38,14 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn get_edges(&self) -> Vec<(usize, usize)> {
+    pub fn get_edges_indices(&self) -> Vec<(usize, usize)> {
         let mut edges = HashSet::new();
 
-        for triangle in &self.indices {
-            let (a, b, c) = (triangle[0], triangle[1], triangle[2]);
-            
+        for inds in &self.indices {
+            let (a, b, c) = (inds[0], inds[1], inds[2]);
             edges.insert((a.min(b), a.max(b)));
-            edges.insert((b.min(c), b.max(c)));
             edges.insert((a.min(c), a.max(c)));
+            edges.insert((c.min(b), c.max(b)));
         }
 
         edges.into_iter().collect()

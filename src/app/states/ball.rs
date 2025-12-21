@@ -10,6 +10,7 @@ use std::borrow::Cow;
 
 use crate::app::graphics::gpu_resources::GPU_Resources;
 use crate::app::graphics::screen::Screen;
+use crate::app::graphics::surface;
 use crate::physics::geometry::{Geometry, Mesh, generate_transform};
 use crate::physics::ball::Ball;
 
@@ -33,13 +34,16 @@ struct Entity {
 struct GraphicsTools {
     resources: Option<Arc<GPU_Resources>>,
 
-    vertex_buf: Option<wgpu::Buffer>,
-    index_buf: Option<wgpu::Buffer>,
-    pub index_count: usize,
     bind_group: Option<wgpu::BindGroup>,
-    uniform_buf: Option<wgpu::Buffer>,
     pipeline_layout: Option<wgpu::PipelineLayout>,
     pipeline: Option<wgpu::RenderPipeline>,
+    bind_group_layout: Option<wgpu::BindGroupLayout>,
+
+    uniform_buf_transform: Option<wgpu::Buffer>,
+    uniform_buf_flag_true: Option<wgpu::Buffer>,
+    uniform_buf_flag_false: Option<wgpu::Buffer>,
+
+    entities: Vec<Entity>,
 }
 
 pub struct StateBall {
@@ -79,14 +83,14 @@ impl StateBall {
         state
     }
 
-    fn create_surface_entity(&self) -> Entity {
-        let (vertices, indices) = self.get_vertices_indices_surface();
+    fn create_entity(&self, vertices: Vec<Vertex>, indices: Vec<u16>, color: wgpu::Color) -> Entity {
         let v_buf = self.resources.buffer_fabric.create_vertex_buffer(&vertices, None);
         let i_buf = self.resources.buffer_fabric.create_index_buffer(&indices, None);
+        let mx_total = generate_transform(self.screen.get_ratio());
 
         Entity {
-            mx_world: generate_transform(self.screen.get_ratio()),
-            color: wgpu::Color::WHITE,
+            mx_world: mx_total,
+            color: color,
             vertex_buf: v_buf,
             index_buf: i_buf,
             index_format: wgpu::IndexFormat::Uint16,
@@ -94,27 +98,28 @@ impl StateBall {
             uniform_offset: 0
         }
     }
+    fn create_surface_entity(&self) -> Entity {
+        let (vertices, indices) = self.get_vertices_indices_surface();
+        self.create_entity(vertices, indices, wgpu::Color::WHITE)
+    }
+    fn create_edges_entity(&self) -> Entity {
+        let (vertices, indices) = self.get_vertices_indices_edges();
+        self.create_entity(vertices, indices, wgpu::Color::BLUE)
+    }
 
     pub fn init(&mut self) {
         self.gtools.init(self.resources.clone());
 
-        let vertex_size = size_of::<Vertex>();
-        let (vertices, indices) = self.get_vertices_indices_surface();
-        let vertex_buf = self.resources.buffer_fabric.create_vertex_buffer(&vertices, None);
-        let index_buf = self.resources.buffer_fabric.create_index_buffer(&indices, None);
-        let vertex_buffers = [wgpu::VertexBufferLayout {
-            array_stride: vertex_size as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: 0,
-                    shader_location: 0,
-                },
-            ],
-        }];
+        // let (vertices, indices) = self.get_vertices_indices_surface();
+        // let vertex_buf = self.resources.buffer_fabric.create_vertex_buffer(&vertices, None);
+        // let index_buf = self.resources.buffer_fabric.create_index_buffer(&indices, None);
+        let mut surface_entity = self.create_surface_entity();
+        let mut edges_entity = self.create_edges_entity();
+        surface_entity.uniform_offset = 1*64;
+        edges_entity  .uniform_offset = 2*64;
 
-        self.get_vertices_indices_edges();
+        self.gtools.push_entity(surface_entity);
+        self.gtools.push_entity(edges_entity);
 
         let bind_group_layout = self.resources.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
@@ -126,6 +131,16 @@ impl StateBall {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
                         min_binding_size: wgpu::BufferSize::new(64),
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(4),
                     },
                     count: None,
                 }
@@ -145,26 +160,39 @@ impl StateBall {
             "Uniform Buffer", 
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
         );
+        self.gtools.uniform_buf_transform = Some(uniform_buf.clone());
+        let flag_data: &[u32; 1] = &[1];
+        let uniform_buf_flag = self.resources.buffer_fabric.create_buffer(
+            flag_data, 
+            "Uniform Buffer", 
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
+        );
+        self.gtools.uniform_buf_flag_true = Some(uniform_buf_flag.clone());
+        let flag_data: &[u32; 1] = &[0];
+        let uniform_buf_flag = self.resources.buffer_fabric.create_buffer(
+            flag_data, 
+            "Uniform Buffer", 
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
+        );
+        self.gtools.uniform_buf_flag_false = Some(uniform_buf_flag.clone());
 
-        // Create bind group
-        let bind_group = self.resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniform_buf.as_entire_binding(),
+        let vertex_size = size_of::<Vertex>();
+        let vertex_buffers = [wgpu::VertexBufferLayout {
+            array_stride: vertex_size as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 0,
+                    shader_location: 0,
                 },
             ],
-            label: None,
-        });
+        }];
 
         let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/ball.wgsl"));
         
-        self.gtools.set_vertex_buffer(vertex_buf);
-        self.gtools.set_index_buffer(index_buf);
-        self.gtools.set_bind_group(bind_group);
         self.gtools.set_pipeline_layout(pipeline_layout);
-        self.gtools.index_count = indices.len();
+        self.gtools.set_bind_group_layout(bind_group_layout);
         self.gtools.init_pipeline(shader, &vertex_buffers, &[Some(self.screen.surface.get_format().into())]);
     }
 
@@ -189,7 +217,7 @@ impl StateBall {
     }
 
     pub fn get_vertices_indices_edges(&self) -> (Vec<Vertex>, Vec<u16>) {
-        let mesh = self.ball.get_edges_mesh(0.1);
+        let mesh = self.ball.get_edges_mesh(0.01);
         Self::transform_mesh_to_vertices_indices(mesh)
     }
 
@@ -206,14 +234,14 @@ impl GraphicsTools {
     pub fn set_pipeline_layout(&mut self, pipeline_layout: wgpu::PipelineLayout) {
         self.pipeline_layout = Some(pipeline_layout);
     }
+    pub fn set_bind_group_layout(&mut self, bind_group_layout: wgpu::BindGroupLayout) {
+        self.bind_group_layout = Some(bind_group_layout);
+    }
     pub fn set_bind_group(&mut self, bind_group: wgpu::BindGroup) {
         self.bind_group = Some(bind_group);
     }
-    pub fn set_index_buffer(&mut self, buf: wgpu::Buffer) {
-        self.index_buf = Some(buf);
-    }
-    pub fn set_vertex_buffer(&mut self, buf: wgpu::Buffer) {
-        self.vertex_buf = Some(buf);
+    pub fn push_entity(&mut self, entity: Entity) {
+        self.entities.push(entity)
     }
 
     pub fn init_pipeline(&mut self, 
@@ -281,12 +309,49 @@ impl GraphicsTools {
             });
             rpass.push_debug_group("Prepare data for draw.");
             rpass.set_pipeline(&self.pipeline.as_ref().unwrap());
-            rpass.set_bind_group(0, &self.bind_group, &[]);
-            rpass.set_index_buffer(self.index_buf.as_ref().unwrap().slice(..), wgpu::IndexFormat::Uint16);
-            rpass.set_vertex_buffer(0, self.vertex_buf.as_ref().unwrap().slice(..));
+
+            let bind_group = screen.resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.bind_group_layout.clone().unwrap(),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: self.uniform_buf_transform.clone().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: self.uniform_buf_flag_false.clone().unwrap().as_entire_binding(),
+                    },
+                ],
+                label: None,
+            });
+
+            rpass.set_bind_group(0, &bind_group, &[]);
+            rpass.set_index_buffer(self.entities[0].index_buf.slice(..), wgpu::IndexFormat::Uint16);
+            rpass.set_vertex_buffer(0, self.entities[0].vertex_buf.slice(..));
+            rpass.draw_indexed(0..self.entities[0].index_count as u32, 0, 0..1);
+            
+            let bind_group = screen.resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.bind_group_layout.clone().unwrap(),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: self.uniform_buf_transform.clone().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: self.uniform_buf_flag_true.clone().unwrap().as_entire_binding(),
+                    },
+                ],
+                label: None,
+            });
+
+            rpass.set_bind_group(0, &bind_group, &[]);
+            rpass.set_index_buffer(self.entities[1].index_buf.slice(..), wgpu::IndexFormat::Uint16);
+            rpass.set_vertex_buffer(0, self.entities[1].vertex_buf.slice(..));
+            rpass.draw_indexed(0..self.entities[1].index_count as u32, 0, 0..1);
+
             rpass.pop_debug_group();
             rpass.insert_debug_marker("Draw!");
-            rpass.draw_indexed(0..self.index_count as u32, 0, 0..1);
         }
 
         self.resources
@@ -301,13 +366,15 @@ impl Default for GraphicsTools {
     fn default() -> Self {
         GraphicsTools {
             resources: None,
-            vertex_buf: None,
-            index_buf: None,
-            index_count: 0,
             bind_group: None,
-            uniform_buf: None,
             pipeline: None,
-            pipeline_layout: None
+            pipeline_layout: None,
+            entities: vec![],
+            bind_group_layout: None,
+
+            uniform_buf_transform: None,
+            uniform_buf_flag_true: None,
+            uniform_buf_flag_false: None,
         }
     }
 }

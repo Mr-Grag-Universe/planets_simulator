@@ -50,7 +50,7 @@ impl Geometry for Ball {
         let vertices = fibonacci_sphere_points(100, self.radius);
         let surface_indices = quick_hull(&vertices);
         let surface_mesh = Mesh { vertices: vertices.clone(), indices: surface_indices };
-        let indices = surface_mesh.get_edges();
+        let indices = surface_mesh.get_edges_indices();
 
         let mut edges_vertices = Vec::new();
         let mut edges_indices = Vec::new();
@@ -60,25 +60,26 @@ impl Geometry for Ball {
             let v1_edge = shift_point_from(&v1, &center_point, bold);
             let v2_edge = shift_point_from(&v2, &center_point, bold);
 
-            let ind11_edge = edges_vertices
-                .iter()
-                .position(|&v| v == v1_edge)
-                .unwrap_or_else(|| {
-                    edges_vertices.push(v1.clone());
-                    edges_vertices.push(v1_edge.clone());
-                    edges_vertices.len() - 1 // возвращаем новый индекс
+            let ind11_edge = edges_vertices.iter().position(|v| v == v1).unwrap_or_else(|| {
+                edges_vertices.push(v1.clone());
+                edges_vertices.len() - 1
             });
-            let ind12_edge = ind11_edge+1;
 
-            let ind21_edge = edges_vertices
-                .iter()
-                .position(|&v| v == v2_edge)
-                .unwrap_or_else(|| {
-                    edges_vertices.push(v2.clone());
-                    edges_vertices.push(v2_edge.clone());
-                    edges_vertices.len() - 1 // возвращаем новый индекс
+            let ind12_edge = edges_vertices.iter().position(|v| *v == v1_edge).unwrap_or_else(|| {
+                edges_vertices.push(v1_edge.clone());
+                edges_vertices.len() - 1
             });
-            let ind22_edge = ind21_edge+1;
+
+            // Теперь получаем индексы для v2 и v2_edge
+            let ind21_edge = edges_vertices.iter().position(|v| v == v2).unwrap_or_else(|| {
+                edges_vertices.push(v2.clone());
+                edges_vertices.len() - 1
+            });
+
+            let ind22_edge = edges_vertices.iter().position(|v| *v == v2_edge).unwrap_or_else(|| {
+                edges_vertices.push(v2_edge.clone());
+                edges_vertices.len() - 1
+            });
 
             edges_indices.push([ind11_edge, ind12_edge, ind21_edge]);
             edges_indices.push([ind12_edge, ind22_edge, ind21_edge]);
