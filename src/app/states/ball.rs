@@ -161,7 +161,7 @@ impl StateBall {
         
         let uniforms = [Uniforms {
             transform: mx_total.to_cols_array_2d(),
-            light_direction: [0.0, 0.0, -1.0],  // Свет из камеры на объект
+            light_direction: [0.0, 0.0, -1.0],
             _padding1: 0.0,
             light_color: [1.0, 1.0, 1.0],
             _padding2: 0.0,
