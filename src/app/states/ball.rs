@@ -22,6 +22,18 @@ struct Vertex {
     _col: [f32; 4],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct Uniforms {
+    transform: [[f32; 4]; 4],
+    light_direction: [f32; 3],
+    _padding1: f32,  // Выравнивание до 16 байт
+    light_color: [f32; 3],
+    _padding2: f32,  // Выравнивание до 16 байт
+    ambient_strength: f32,
+    _padding3: [f32; 3],  // Добиваем до 16 байт
+}
+
 struct Entity {
     mx_world: glam::Mat4,
     color: wgpu::Color,
@@ -40,7 +52,7 @@ struct GraphicsTools {
     pipeline: Option<wgpu::RenderPipeline>,
     bind_group_layout: Option<wgpu::BindGroupLayout>,
 
-    uniform_buf_transform: Option<wgpu::Buffer>,
+    uniform_buf: Option<wgpu::Buffer>,
     uniform_buf_flag_true: Option<wgpu::Buffer>,
     uniform_buf_flag_false: Option<wgpu::Buffer>,
 
@@ -127,24 +139,14 @@ impl StateBall {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::all(),
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(64),
+                        min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<Uniforms>() as u64),
                     },
                     count: None,
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(4),
-                    },
-                    count: None,
-                }
             ],
         });
         let pipeline_layout = self.resources.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -156,26 +158,22 @@ impl StateBall {
         
         let mx_total = generate_transform(self.screen.get_ratio());
         let mx_ref: &[f32; 16] = mx_total.as_ref();
+        
+        let uniforms = [Uniforms {
+            transform: mx_total.to_cols_array_2d(),
+            light_direction: [0.0, 0.0, -1.0],  // Свет из камеры на объект
+            _padding1: 0.0,
+            light_color: [1.0, 1.0, 1.0],
+            _padding2: 0.0,
+            ambient_strength: 0.3,
+            _padding3: [0.0; 3],
+        }];
         let uniform_buf = self.resources.buffer_fabric.create_buffer_init(
-            mx_ref, 
+            &uniforms, 
             "Uniform Buffer", 
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
         );
-        self.gtools.uniform_buf_transform = Some(uniform_buf.clone());
-        let flag_data: &[u32; 1] = &[1];
-        let uniform_buf_flag = self.resources.buffer_fabric.create_buffer_init(
-            flag_data, 
-            "Uniform Buffer", 
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
-        );
-        self.gtools.uniform_buf_flag_true = Some(uniform_buf_flag.clone());
-        let flag_data: &[u32; 1] = &[0];
-        let uniform_buf_flag = self.resources.buffer_fabric.create_buffer_init(
-            flag_data, 
-            "Uniform Buffer", 
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
-        );
-        self.gtools.uniform_buf_flag_false = Some(uniform_buf_flag.clone());
+        self.gtools.uniform_buf = Some(uniform_buf);
 
         let vertex_size = size_of::<Vertex>();
         let vertex_buffers = [wgpu::VertexBufferLayout {
@@ -201,11 +199,7 @@ impl StateBall {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: self.gtools.uniform_buf_transform.clone().unwrap().as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: self.gtools.uniform_buf_flag_false.clone().unwrap().as_entire_binding(),
+                    resource: self.gtools.uniform_buf.clone().unwrap().as_entire_binding(),
                 },
             ],
             label: None,
@@ -393,7 +387,7 @@ impl Default for GraphicsTools {
             entities: vec![],
             bind_group_layout: None,
 
-            uniform_buf_transform: None,
+            uniform_buf: None,
             uniform_buf_flag_true: None,
             uniform_buf_flag_false: None,
         }
