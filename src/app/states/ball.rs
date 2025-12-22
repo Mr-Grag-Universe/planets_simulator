@@ -98,8 +98,8 @@ impl StateBall {
             .collect();
         assert_eq!(indices_s.len() + indices_e.len(), indices.len(), "Lengthes must be the same!");
 
-        let v_buf = self.resources.buffer_fabric.create_vertex_buffer(&vertices, None);
-        let i_buf = self.resources.buffer_fabric.create_index_buffer(&indices, None);
+        let v_buf = self.resources.buffer_fabric.create_vertex_buffer_init(&vertices, None);
+        let i_buf = self.resources.buffer_fabric.create_index_buffer_init(&indices, None);
         let mx_total = generate_transform(self.screen.get_ratio());
 
         Entity {
@@ -156,21 +156,21 @@ impl StateBall {
         
         let mx_total = generate_transform(self.screen.get_ratio());
         let mx_ref: &[f32; 16] = mx_total.as_ref();
-        let uniform_buf = self.resources.buffer_fabric.create_buffer(
+        let uniform_buf = self.resources.buffer_fabric.create_buffer_init(
             mx_ref, 
             "Uniform Buffer", 
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
         );
         self.gtools.uniform_buf_transform = Some(uniform_buf.clone());
         let flag_data: &[u32; 1] = &[1];
-        let uniform_buf_flag = self.resources.buffer_fabric.create_buffer(
+        let uniform_buf_flag = self.resources.buffer_fabric.create_buffer_init(
             flag_data, 
             "Uniform Buffer", 
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
         );
         self.gtools.uniform_buf_flag_true = Some(uniform_buf_flag.clone());
         let flag_data: &[u32; 1] = &[0];
-        let uniform_buf_flag = self.resources.buffer_fabric.create_buffer(
+        let uniform_buf_flag = self.resources.buffer_fabric.create_buffer_init(
             flag_data, 
             "Uniform Buffer", 
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
@@ -195,9 +195,26 @@ impl StateBall {
             ],
         }];
 
+        
+        let bind_group = self.screen.resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout.clone(),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.gtools.uniform_buf_transform.clone().unwrap().as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: self.gtools.uniform_buf_flag_false.clone().unwrap().as_entire_binding(),
+                },
+            ],
+            label: None,
+        });
+
         let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/ball.wgsl"));
         
         self.gtools.set_pipeline_layout(pipeline_layout);
+        self.gtools.set_bind_group(bind_group);
         self.gtools.set_bind_group_layout(bind_group_layout);
         self.gtools.init_pipeline(shader, &vertex_buffers, &[Some(self.screen.surface.get_format().into())]);
     }
@@ -220,12 +237,12 @@ impl StateBall {
         (vertices, indices)
     }
 
-    pub fn get_vertices_indices_surface(&self) -> (Vec<Vertex>, Vec<u16>) {
+    fn get_vertices_indices_surface(&self) -> (Vec<Vertex>, Vec<u16>) {
         let mesh = self.ball.get_surface_mesh();
         Self::transform_mesh_to_vertices_indices(mesh, wgpu::Color{r:0.0, g:1.0, b:1.0, a:1.0})
     }
 
-    pub fn get_vertices_indices_edges(&self) -> (Vec<Vertex>, Vec<u16>) {
+    fn get_vertices_indices_edges(&self) -> (Vec<Vertex>, Vec<u16>) {
         let mesh = self.ball.get_edges_mesh(0.01);
         Self::transform_mesh_to_vertices_indices(mesh, wgpu::Color{r:1.0, g:0.0, b:1.0, a:1.0})
     }
@@ -347,49 +364,13 @@ impl GraphicsTools {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
+
             rpass.push_debug_group("Prepare data for draw.");
             rpass.set_pipeline(&self.pipeline.as_ref().unwrap());
-
-            let bind_group = screen.resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &self.bind_group_layout.clone().unwrap(),
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: self.uniform_buf_transform.clone().unwrap().as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: self.uniform_buf_flag_false.clone().unwrap().as_entire_binding(),
-                    },
-                ],
-                label: None,
-            });
-
-            rpass.set_bind_group(0, &bind_group, &[]);
+            rpass.set_bind_group(0, &self.bind_group, &[]);
             rpass.set_index_buffer(self.entities[0].index_buf.slice(..), wgpu::IndexFormat::Uint16);
             rpass.set_vertex_buffer(0, self.entities[0].vertex_buf.slice(..));
             rpass.draw_indexed(0..self.entities[0].index_count as u32, 0, 0..1);
-            
-            // let bind_group = screen.resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            //     layout: &self.bind_group_layout.clone().unwrap(),
-            //     entries: &[
-            //         wgpu::BindGroupEntry {
-            //             binding: 0,
-            //             resource: self.uniform_buf_transform.clone().unwrap().as_entire_binding(),
-            //         },
-            //         wgpu::BindGroupEntry {
-            //             binding: 1,
-            //             resource: self.uniform_buf_flag_true.clone().unwrap().as_entire_binding(),
-            //         },
-            //     ],
-            //     label: None,
-            // });
-
-            // rpass.set_bind_group(0, &bind_group, &[]);
-            // rpass.set_index_buffer(self.entities[1].index_buf.slice(..), wgpu::IndexFormat::Uint16);
-            // rpass.set_vertex_buffer(0, self.entities[1].vertex_buf.slice(..));
-            // rpass.draw_indexed(0..self.entities[1].index_count as u32, 0, 0..1);
-
             rpass.pop_debug_group();
             rpass.insert_debug_marker("Draw!");
         }

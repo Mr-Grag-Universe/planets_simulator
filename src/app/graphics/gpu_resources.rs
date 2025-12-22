@@ -16,7 +16,7 @@ pub struct BufferFabric {
     device: Arc<wgpu::Device>
 }
 impl BufferFabric {
-    pub fn create_buffer<T>(&self, data: &[T], label: &str, usage_flags: wgpu::BufferUsages) -> wgpu::Buffer 
+    pub fn create_buffer_init<T>(&self, data: &[T], label: &str, usage_flags: wgpu::BufferUsages) -> wgpu::Buffer 
         where T: Pod + Zeroable
     {
         self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -26,28 +26,28 @@ impl BufferFabric {
         })
     }
     
-    pub fn create_vertex_buffer<T>(&self, vertices: &[T], label: Option<&str>) -> wgpu::Buffer 
+    pub fn create_vertex_buffer_init<T>(&self, vertices: &[T], label: Option<&str>) -> wgpu::Buffer 
         where T: Pod + Zeroable
     {
-        self.create_buffer(
+        self.create_buffer_init(
             vertices, 
             label.unwrap_or("Vertex Buffer"), 
             wgpu::BufferUsages::VERTEX
         )
     }
-    pub fn create_index_buffer<T>(&self, indices: &[T], label: Option<&str>) -> wgpu::Buffer 
+    pub fn create_index_buffer_init<T>(&self, indices: &[T], label: Option<&str>) -> wgpu::Buffer 
         where T: Pod + Zeroable
     {
-        self.create_buffer(
+        self.create_buffer_init(
             indices, 
             label.unwrap_or("Index Buffer"), 
             wgpu::BufferUsages::INDEX
         )
     }
-    pub fn create_uniform_buffer<T>(&self, data: &[T], label: Option<&str>) -> wgpu::Buffer 
+    pub fn create_uniform_buffer_init<T>(&self, data: &[T], label: Option<&str>) -> wgpu::Buffer 
         where T: Pod + Zeroable
     {
-        self.create_buffer(
+        self.create_buffer_init(
             data,
             label.unwrap_or("Uniform Buffer"),
             wgpu::BufferUsages::UNIFORM,

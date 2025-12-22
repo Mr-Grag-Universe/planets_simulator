@@ -88,8 +88,8 @@ impl StateCube {
         let (vertex_data, index_data) = cube.create_v_i();
 
         // create buffers for vertices and indices to pass to shading phase
-        let vertex_buf = resources.buffer_fabric.create_vertex_buffer(&vertex_data, None);
-        let index_buf = resources.buffer_fabric.create_index_buffer(&index_data, None);
+        let vertex_buf = resources.buffer_fabric.create_vertex_buffer_init(&vertex_data, None);
+        let index_buf = resources.buffer_fabric.create_index_buffer_init(&index_data, None);
 
         // Create pipeline layout
         let bind_group_layout = resources.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -115,7 +115,7 @@ impl StateCube {
 
         let mx_total = generate_transform(screen.get_ratio());
         let mx_ref: &[f32; 16] = mx_total.as_ref();
-        let uniform_buf = resources.buffer_fabric.create_buffer(
+        let uniform_buf = resources.buffer_fabric.create_buffer_init(
             mx_ref, 
             "Uniform Buffer", 
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
