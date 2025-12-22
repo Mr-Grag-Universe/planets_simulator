@@ -1,6 +1,10 @@
 # Planet Simulator 🪐
 An interactive 3D solar system simulator built with Rust and modern graphics technologies that accurately models planetary motion using real physics principles.
 
+## Preview
+
+![alt text](demo/image.png)
+
 # 🚀 Overview
 Planet Simulator is a real-time physics simulation that visualizes our solar system with accurate orbital mechanics. Watch as planets orbit the Sun, moons circle their parent planets, and experience the celestial dance governed by Newton's laws of motion and universal gravitation.
 

@@ -39,17 +39,18 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     let diff2 = max(dot(normal, light_dir2), 0.0) * 0.3;
 
     let ambient = uniforms.ambient_strength;
-    let lighting = ambient + diff1 + diff2;
+    // let lighting = ambient + diff1 + diff2;
 
-    // let light_dir = normalize(uniforms.light_direction);
+    let light_dir = normalize(uniforms.light_direction);
     // let intencity = max(dot(normal, light_dir), 0.0);
-    // let lighting = ambient + intencity;
-    // let lit_color = vertex.color.rgb * lighting * uniforms.light_color;
+    let intencity = (pow(1.0 + dot(normal, light_dir), 3) + ambient) / (8.0 + ambient);
+    let lighting = intencity;
+    let lit_color = vertex.color.rgb * lighting * uniforms.light_color;
 
-    let main_light = vertex.color.rgb * diff1;
-    let fill_light = vertex.color.rgb * diff2 * vec3<f32>(0.8, 0.9, 1.0);
-    let ambient_light = vertex.color.rgb * ambient;
-    let lit_color = main_light + fill_light + ambient_light;
+    // let main_light = vertex.color.rgb * diff1;
+    // let fill_light = vertex.color.rgb * diff2 * vec3<f32>(0.8, 0.9, 1.0);
+    // let ambient_light = vertex.color.rgb * ambient;
+    // let lit_color = main_light + fill_light + ambient_light;
     // let lit_color = fill_light + ambient_light;
 
     return vec4<f32>(lit_color, vertex.color.a);

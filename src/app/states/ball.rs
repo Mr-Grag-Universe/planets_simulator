@@ -161,11 +161,11 @@ impl StateBall {
         
         let uniforms = [Uniforms {
             transform: mx_total.to_cols_array_2d(),
-            light_direction: [0.0, 0.0, -1.0],
+            light_direction: [-0.4, 0.1, 0.5],
             _padding1: 0.0,
             light_color: [1.0, 1.0, 1.0],
             _padding2: 0.0,
-            ambient_strength: 0.3,
+            ambient_strength: 1.0,
             _padding3: [0.0; 3],
         }];
         let uniform_buf = self.resources.buffer_fabric.create_buffer_init(
