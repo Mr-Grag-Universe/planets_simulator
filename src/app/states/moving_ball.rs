@@ -35,6 +35,7 @@ pub fn generate_transform(aspect_ratio: f32) -> glam::Mat4 {
 struct Vertex {
     _pos: [f32; 4],
     _col: [f32; 4],
+    _normal: [f32; 3],
 }
 
 #[repr(C)]
@@ -213,6 +214,11 @@ impl StateMovingBall {
                     offset: size_of::<[f32; 4]>() as wgpu::BufferAddress,
                     shader_location: 1,
                 },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: (size_of::<[f32; 4]>()*2) as wgpu::BufferAddress,
+                    shader_location: 2,
+                },
             ],
         }];
 
@@ -237,10 +243,23 @@ impl StateMovingBall {
     }
 
     fn transform_mesh_to_vertices_indices(mesh: Mesh, color: wgpu::Color) -> (Vec<Vertex>, Vec<u16>) {
+        let center = mesh.vertices.iter().fold([0.0; 3], |acc, v| {
+            [acc[0] + v[0] as f32, acc[1] + v[1] as f32, acc[2] + v[2] as f32]
+        });
+        let vertex_count = mesh.vertices.len() as f32;
+        let center = [center[0] / vertex_count, center[1] / vertex_count, center[2] / vertex_count];
+    
         let vertices = mesh.vertices.iter().map(|v| {
+            let normal = [
+                v[0] as f32 - center[0],
+                v[1] as f32 - center[1],
+                v[2] as f32 - center[2],
+            ];
+
             Vertex { 
                 _pos: [v[0] as f32, v[1] as f32, v[2] as f32, 1.0], 
                 _col: [color.r as f32, color.g as f32, color.b as f32, color.a as f32],
+                _normal: normal,
             }
         }).collect();
 
