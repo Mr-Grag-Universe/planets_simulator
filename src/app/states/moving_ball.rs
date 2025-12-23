@@ -11,9 +11,24 @@ use std::borrow::Cow;
 use crate::app::graphics::gpu_resources::GPU_Resources;
 use crate::app::graphics::screen::Screen;
 use crate::app::graphics::surface;
-use crate::physics::geometry::{Geometry, Mesh, generate_transform};
+use crate::physics::geometry::{Geometry, GraphicsGeometry, Mesh, Point3};
 use crate::physics::ball::Ball;
 
+
+
+const ORIGIN_POS: [f32; 3] = [0.0, 0.0, 0.0];
+const R: f32 = 10.0;
+
+
+pub fn generate_transform(aspect_ratio: f32) -> glam::Mat4 {
+    let projection = glam::Mat4::perspective_rh(PI as f32 / 4.0, aspect_ratio, 1.0, 100.0);
+    let view = glam::Mat4::look_at_rh(
+        glam::Vec3::new(20.0, 5.0, 20.0),
+        glam::Vec3::ZERO,
+        glam::Vec3::Z,
+    );
+    projection * view
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -26,7 +41,7 @@ struct Vertex {
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Uniforms {
     transform: [[f32; 4]; 4],
-    light_direction: [f32; 3],
+    light_origin: [f32; 3],
     _padding1: f32,  // Выравнивание до 16 байт
 
     light_color: [f32; 3],
@@ -61,15 +76,15 @@ struct GraphicsTools {
     entities: Vec<Entity>,
 }
 
-pub struct StateBall {
+pub struct StateMovingBall {
     pub screen: Screen,
-    pub ball: Ball,
+    pub ball: GraphicsGeometry,
     pub resources: Arc<GPU_Resources>,
     pub gtools: GraphicsTools
 }
 
 
-impl StateBall {
+impl StateMovingBall {
     pub fn configure_surface(&self) {
         self.screen.configure_surface();
     }
@@ -79,16 +94,22 @@ impl StateBall {
         self.init();
     }
 
-    pub fn new(window: Arc<Window>, resources: Arc<GPU_Resources>) -> StateBall {
+    pub fn new(window: Arc<Window>, resources: Arc<GPU_Resources>) -> StateMovingBall {
         let mut screen = Screen::new(window.clone(), resources.clone());
         screen.set_bg_color(wgpu::Color::BLACK);
         screen.configure_surface();
 
         let ball = Ball::new(1.0);
+        let ball = GraphicsGeometry::new(
+            Box::new(ball), 
+            (0.0, 0.0, 0.0), // identity rotation
+            1.0, 
+            Point3::new((ORIGIN_POS[0]+R) as f64, ORIGIN_POS[1] as f64, ORIGIN_POS[2] as f64)
+        );
 
         let mut gtools = GraphicsTools::default();
 
-        let mut state = StateBall { 
+        let mut state = StateMovingBall { 
             screen, 
             ball, 
             resources: resources.clone(), 
@@ -163,7 +184,7 @@ impl StateBall {
         
         let uniforms = [Uniforms {
             transform: mx_total.to_cols_array_2d(),
-            light_direction: [-0.4, 0.1, 0.5],
+            light_origin: ORIGIN_POS,
             _padding1: 0.0,
             light_color: [1.0, 1.0, 1.0],
             _padding2: 0.0,
@@ -207,7 +228,7 @@ impl StateBall {
             label: None,
         });
 
-        let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/moving_ball.wgsl"));
+        let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/ball.wgsl"));
         
         self.gtools.set_pipeline_layout(pipeline_layout);
         self.gtools.set_bind_group(bind_group);
@@ -234,12 +255,12 @@ impl StateBall {
     }
 
     fn get_vertices_indices_surface(&self) -> (Vec<Vertex>, Vec<u16>) {
-        let mesh = self.ball.get_surface_mesh();
+        let mesh = self.ball.get_surface();
         Self::transform_mesh_to_vertices_indices(mesh, wgpu::Color{r:0.0, g:1.0, b:1.0, a:1.0})
     }
 
     fn get_vertices_indices_edges(&self) -> (Vec<Vertex>, Vec<u16>) {
-        let mesh = self.ball.get_edges_mesh(0.01);
+        let mesh = self.ball.get_edges(0.01);
         Self::transform_mesh_to_vertices_indices(mesh, wgpu::Color{r:1.0, g:0.0, b:1.0, a:1.0})
     }
 
@@ -395,5 +416,3 @@ impl Default for GraphicsTools {
         }
     }
 }
-
-

@@ -88,7 +88,7 @@ impl GraphicsGeometry {
         geometry: Box<dyn Geometry>,
         rotation_euler: (f64, f64, f64), // (roll, pitch, yaw) in radians
         scale: f64,
-        center: Point3,
+        center: Point3
     ) -> Self {
         let rotation = Rotation3::from_euler_angles(rotation_euler.0, rotation_euler.1, rotation_euler.2);
         Self { geometry, rotation, scale, center }
