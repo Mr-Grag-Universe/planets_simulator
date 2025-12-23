@@ -39,6 +39,7 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
+                state.update_ball();
                 state.render();
                 // Emits a new redraw requested event.
                 state.screen.get_window().request_redraw();

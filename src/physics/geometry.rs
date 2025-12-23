@@ -111,7 +111,7 @@ impl GraphicsGeometry {
 
     pub fn get_edges(&self, bold: f32) -> Mesh {
         let base = self.geometry.get_edges_mesh(bold);
-        
+
         let transformed_vertices: Vec<Point3> = base.vertices.iter().map(|v| {
             let scaled = *v * self.scale;
             let rotated = self.rotation * scaled;

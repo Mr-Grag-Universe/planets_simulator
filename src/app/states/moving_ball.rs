@@ -13,6 +13,7 @@ use crate::app::graphics::screen::Screen;
 use crate::app::graphics::surface;
 use crate::physics::geometry::{Geometry, GraphicsGeometry, Mesh, Point3};
 use crate::physics::ball::Ball;
+use crate::physics::coords::Coord;
 
 
 
@@ -157,6 +158,8 @@ impl StateMovingBall {
         // let index_buf = self.resources.buffer_fabric.create_index_buffer(&indices, None);
         let entity = self.create_entity(wgpu::Color::WHITE);
         self.gtools.push_entity(entity);
+        let entity = self.create_entity(wgpu::Color::WHITE);
+        self.gtools.entities[0] = entity;
 
         let bind_group_layout = self.resources.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
@@ -240,6 +243,13 @@ impl StateMovingBall {
         self.gtools.set_bind_group(bind_group);
         self.gtools.set_bind_group_layout(bind_group_layout);
         self.gtools.init_pipeline(shader, &vertex_buffers, &[Some(self.screen.surface.get_format().into())]);
+    }
+
+    pub fn update_ball(&mut self) {
+        let mut coord = Coord::new_cartesian(self.ball.center.x, self.ball.center.y, self.ball.center.z);
+        coord.set_spherical(coord.r, coord.azimuth + PI / 100.0, coord.elevation);
+        self.ball.center = Point3::new(coord.x, coord.y, coord.z);
+        self.init();
     }
 
     fn transform_mesh_to_vertices_indices(mesh: Mesh, color: wgpu::Color) -> (Vec<Vertex>, Vec<u16>) {
