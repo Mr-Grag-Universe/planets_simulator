@@ -31,31 +31,26 @@ fn vs_main(
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     let normal = normalize(vertex.normal);
-
-    // let light_direction = light_origin - vertex.world_pos;
-    let light_direction = -vertex.world_pos;
-
-    let light_dir1 = normalize(light_direction);
-    let diff1 = max(dot(normal, light_dir1), 0.0);
-
-    let light_dir2 = normalize(vec3<f32>(-0.3, -0.5, 0.4));
-    let diff2 = max(dot(normal, light_dir2), 0.0) * 0.3;
+    let light_direction = (uniforms.light_origin - vertex.world_pos);
+    let light_dir = normalize(light_direction);
 
     let ambient = uniforms.ambient_strength;
+
+    // let light_dir1 = normalize(light_direction);
+    // let diff1 = max(dot(normal, light_dir1), 0.0);
+    // let light_dir2 = normalize(vec3<f32>(-0.3, -0.5, 0.4));
+    // let diff2 = max(dot(normal, light_dir2), 0.0) * 0.3;
     // let lighting = ambient + diff1 + diff2;
-
-    let light_dir = normalize(light_direction);
     // let intencity = max(dot(normal, light_dir), 0.0);
-    let intencity = (pow(1.0 + max(dot(normal, light_dir), 0), 2) + ambient*4) / (4.0 + ambient*4);
-    let lighting = 1.0; // intencity;
-    let lit_color = vertex.color.rgb * lighting * uniforms.light_color;
-
     // let main_light = vertex.color.rgb * diff1;
     // let fill_light = vertex.color.rgb * diff2 * vec3<f32>(0.8, 0.9, 1.0);
-    // let ambient_light = vertex.color.rgb * ambient;
     // let lit_color = main_light + fill_light + ambient_light;
+    // let ambient_light = vertex.color.rgb * ambient;
     // let lit_color = fill_light + ambient_light;
-    return vertex.color;
+
+    let intencity = (pow(1.0 + max(dot(normal, light_dir), -0.3), 1.0) + ambient) / (2.0 + ambient);
+    let lighting = intencity;
+    let lit_color = vertex.color.rgb * lighting * uniforms.light_color;
 
     return vec4<f32>(lit_color, vertex.color.a);
 }

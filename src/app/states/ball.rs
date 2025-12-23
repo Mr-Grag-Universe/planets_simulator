@@ -207,7 +207,7 @@ impl StateBall {
             label: None,
         });
 
-        let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/moving_ball.wgsl"));
+        let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/ball.wgsl"));
         
         self.gtools.set_pipeline_layout(pipeline_layout);
         self.gtools.set_bind_group(bind_group);

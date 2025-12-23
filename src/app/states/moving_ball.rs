@@ -23,7 +23,7 @@ const R: f32 = 10.0;
 pub fn generate_transform(aspect_ratio: f32) -> glam::Mat4 {
     let projection = glam::Mat4::perspective_rh(PI as f32 / 4.0, aspect_ratio, 1.0, 100.0);
     let view = glam::Mat4::look_at_rh(
-        glam::Vec3::new(20.0, 5.0, 20.0),
+        glam::Vec3::new(20.0, 10.0, 20.0),
         glam::Vec3::ZERO,
         glam::Vec3::Z,
     );
@@ -184,7 +184,7 @@ impl StateMovingBall {
         
         let uniforms = [Uniforms {
             transform: mx_total.to_cols_array_2d(),
-            light_origin: ORIGIN_POS,
+            light_origin: [0.0, 0.0, 0.0],
             _padding1: 0.0,
             light_color: [1.0, 1.0, 1.0],
             _padding2: 0.0,
@@ -228,7 +228,7 @@ impl StateMovingBall {
             label: None,
         });
 
-        let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/ball.wgsl"));
+        let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/moving_ball.wgsl"));
         
         self.gtools.set_pipeline_layout(pipeline_layout);
         self.gtools.set_bind_group(bind_group);
