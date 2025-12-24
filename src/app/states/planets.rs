@@ -1,15 +1,21 @@
 use std::sync::Arc;
+use wgpu::{Buffer, PipelineLayout};
+use wgpu::naga::common::wgsl;
+use wgpu::util::DeviceExt;
 use winit::window::Window;
 use bytemuck::{Pod, Zeroable};
 use glam;
 use std::f64::consts::PI;
+use std::borrow::Cow;
 
 use crate::app::graphics::gpu_resources::GPU_Resources;
 use crate::app::graphics::screen::Screen;
-use crate::physics::geometry::{Mesh, Point3};
+use crate::app::graphics::{planet, surface};
 use crate::app::graphics::graphycs_geometry::GraphicsGeometry;
+use crate::physics::geometry::{Geometry, Mesh, Point3};
 use crate::physics::ball::Ball;
 use crate::physics::coords::Coord;
+use crate::app::graphics::planet::Planet;
 
 
 
@@ -74,15 +80,15 @@ struct GraphicsTools {
     entities: Vec<Entity>,
 }
 
-pub struct StateMovingBall {
+pub struct StatePlanets {
     pub screen: Screen,
-    pub ball: GraphicsGeometry,
+    pub planets: Vec<Planet>,
     pub resources: Arc<GPU_Resources>,
     pub gtools: GraphicsTools
 }
 
 
-impl StateMovingBall {
+impl StatePlanets {
     pub fn configure_surface(&self) {
         self.screen.configure_surface();
     }
@@ -92,24 +98,33 @@ impl StateMovingBall {
         self.init();
     }
 
-    pub fn new(window: Arc<Window>, resources: Arc<GPU_Resources>) -> StateMovingBall {
+    pub fn new(window: Arc<Window>, resources: Arc<GPU_Resources>) -> StatePlanets {
         let mut screen = Screen::new(window.clone(), resources.clone());
         screen.set_bg_color(wgpu::Color::BLACK);
         screen.configure_surface();
 
         let ball = Ball::new(1.0);
-        let ball = GraphicsGeometry::new(
+        let planet_1 = GraphicsGeometry::new(
             Box::new(ball), 
             (0.0, 0.0, 0.0), // identity rotation
             1.0, 
-            Point3::new((ORIGIN_POS[0]+R) as f64, ORIGIN_POS[1] as f64, ORIGIN_POS[2] as f64)
+            Point3::new((ORIGIN_POS[0]+10.0) as f64, ORIGIN_POS[1] as f64, ORIGIN_POS[2] as f64)
         );
+        let planet_1 = Planet { geom_obj: planet_1, texture: 0 };
+        let ball = Ball::new(1.0);
+        let planet_2 = GraphicsGeometry::new(
+            Box::new(ball), 
+            (0.0, 0.0, 0.0), // identity rotation
+            1.0, 
+            Point3::new((ORIGIN_POS[0]+5.0) as f64, ORIGIN_POS[1] as f64, ORIGIN_POS[2] as f64)
+        );
+        let planet_2 = Planet { geom_obj: planet_2, texture: 0 };
 
         let mut gtools = GraphicsTools::default();
 
-        let mut state = StateMovingBall { 
+        let mut state = StatePlanets { 
             screen, 
-            ball, 
+            planets: vec![planet_1, planet_2], 
             resources: resources.clone(), 
             gtools 
         };
@@ -149,13 +164,9 @@ impl StateMovingBall {
     pub fn init(&mut self) {
         self.gtools.init(self.resources.clone());
 
-        // let (vertices, indices) = self.get_vertices_indices_surface();
-        // let vertex_buf = self.resources.buffer_fabric.create_vertex_buffer(&vertices, None);
-        // let index_buf = self.resources.buffer_fabric.create_index_buffer(&indices, None);
+        self.gtools.entities = Vec::new();
         let entity = self.create_entity(wgpu::Color::WHITE);
         self.gtools.push_entity(entity);
-        let entity = self.create_entity(wgpu::Color::WHITE);
-        self.gtools.entities[0] = entity;
 
         let bind_group_layout = self.resources.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
@@ -233,7 +244,7 @@ impl StateMovingBall {
             label: None,
         });
 
-        let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/moving_ball.wgsl"));
+        let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/planets.wgsl"));
         
         self.gtools.set_pipeline_layout(pipeline_layout);
         self.gtools.set_bind_group(bind_group);
@@ -242,9 +253,12 @@ impl StateMovingBall {
     }
 
     pub fn update(&mut self) {
-        let mut coord = Coord::new_cartesian(self.ball.center.x, self.ball.center.y, self.ball.center.z);
-        coord.set_spherical(coord.r, coord.azimuth + PI / 100.0, coord.elevation);
-        self.ball.center = Point3::new(coord.x, coord.y, coord.z);
+        for planet in &mut self.planets {
+            let ball = &mut planet.geom_obj;
+            let mut coord = Coord::new_cartesian(ball.center.x, ball.center.y, ball.center.z);
+            coord.set_spherical(coord.r, coord.azimuth + PI / 100.0, coord.elevation);
+            ball.center = Point3::new(coord.x, coord.y, coord.z);
+        }
         self.init();
     }
 
@@ -280,13 +294,29 @@ impl StateMovingBall {
     }
 
     fn get_vertices_indices_surface(&self) -> (Vec<Vertex>, Vec<u16>) {
-        let mesh = self.ball.get_surface();
-        Self::transform_mesh_to_vertices_indices(mesh, wgpu::Color{r:0.0, g:1.0, b:1.0, a:1.0})
+        let mut vertices_all = Vec::new();
+        let mut indices_all = Vec::new();
+        for planet in &self.planets {
+            let mesh = planet.geom_obj.get_surface();
+            let (vertices, indices) = Self::transform_mesh_to_vertices_indices(mesh, wgpu::Color{r:0.0, g:1.0, b:1.0, a:1.0});
+            let offset = vertices_all.len() as u16;
+            vertices_all.extend(vertices);
+            indices_all.extend(indices.iter().map(|&index| index + offset));
+        }
+        (vertices_all, indices_all)
     }
 
     fn get_vertices_indices_edges(&self) -> (Vec<Vertex>, Vec<u16>) {
-        let mesh = self.ball.get_edges(0.01);
-        Self::transform_mesh_to_vertices_indices(mesh, wgpu::Color{r:1.0, g:0.0, b:1.0, a:1.0})
+        let mut vertices_all = Vec::new();
+        let mut indices_all = Vec::new();
+        for planet in &self.planets {
+            let mesh = planet.geom_obj.get_edges(0.01);
+            let (vertices, indices) = Self::transform_mesh_to_vertices_indices(mesh, wgpu::Color{r:1.0, g:0.0, b:1.0, a:1.0});
+            let offset = vertices_all.len() as u16;
+            vertices_all.extend(vertices);
+            indices_all.extend(indices.iter().map(|&index| index + offset));
+        }
+        (vertices_all, indices_all)
     }
 
     pub fn render(&mut self) {

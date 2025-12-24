@@ -7,7 +7,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::app::{graphics::gpu_resources::GPU_Resources, states::moving_ball::StateMovingBall as State};
+use crate::app::{graphics::gpu_resources::GPU_Resources, states::planets::StatePlanets as State};
 
 #[derive(Default)]
 pub struct App {
@@ -39,7 +39,7 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                state.update_ball();
+                state.update();
                 state.render();
                 // Emits a new redraw requested event.
                 state.screen.get_window().request_redraw();
