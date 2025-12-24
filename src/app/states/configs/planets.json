@@ -1,0 +1,16 @@
+{
+    "planets": [
+        {
+            "name": "Earth",
+            "days_in_year": 365,
+            "R_au": 1.0,
+            "radius": 1.0
+        },
+        {
+            "name": "Mars",
+            "days_in_year": 687,
+            "R_au": 1.5235,
+            "radius": 0.532
+        }
+    ]
+}

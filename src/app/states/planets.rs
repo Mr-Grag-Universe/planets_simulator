@@ -10,17 +10,39 @@ use std::borrow::Cow;
 
 use crate::app::graphics::gpu_resources::GPU_Resources;
 use crate::app::graphics::screen::Screen;
-use crate::app::graphics::{planet, surface};
 use crate::app::graphics::graphycs_geometry::GraphicsGeometry;
-use crate::physics::geometry::{Geometry, Mesh, Point3};
+use crate::physics::geometry::{Mesh, Point3};
 use crate::physics::ball::Ball;
 use crate::physics::coords::Coord;
 use crate::app::graphics::planet::Planet;
+use serde;
+use std::fs;
+use std::error::Error;
 
+#[derive(Debug, serde::Deserialize)]
+struct json_Planet {
+    name: String,
+    days_in_year: u32,
+    R_au: f64,
+    radius: f64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct json_Config {
+    planets: Vec<json_Planet>,
+}
+
+
+fn load_config(file_path: &str) -> Result<json_Config, Box<dyn Error>> {
+    let contents = fs::read_to_string(file_path)?;
+    let config: json_Config = serde_json::from_str(&contents)?;
+    Ok(config)
+}
 
 
 const ORIGIN_POS: [f32; 3] = [0.0, 0.0, 0.0];
 const R: f32 = 10.0;
+const BASE_ANGLE_SPEED: f32 = PI as f32 / 100.0;
 
 
 pub fn generate_transform(aspect_ratio: f32) -> glam::Mat4 {
@@ -98,33 +120,40 @@ impl StatePlanets {
         self.init();
     }
 
+    pub fn load_planets() -> Vec<Planet> {
+        let config = load_config("src/app/states/configs/planets.json").unwrap();
+
+        let mut planets = Vec::new();
+        for json_planet in config.planets {
+            let ball = Ball::new(1.0);
+            let planet = GraphicsGeometry::new(
+                Box::new(ball), 
+                (0.0, 0.0, 0.0), // identity rotation
+                json_planet.radius, 
+                Point3::new((ORIGIN_POS[0] + (R*json_planet.R_au as f32)) as f64, ORIGIN_POS[1] as f64, ORIGIN_POS[2] as f64)
+            );
+            let planet = Planet { 
+                geom_obj: planet, 
+                texture: 0, 
+                angle_speed: BASE_ANGLE_SPEED * 365.0 / json_planet.days_in_year as f32 
+            };
+            planets.push(planet);
+        }
+
+        planets
+    }
+
     pub fn new(window: Arc<Window>, resources: Arc<GPU_Resources>) -> StatePlanets {
         let mut screen = Screen::new(window.clone(), resources.clone());
         screen.set_bg_color(wgpu::Color::BLACK);
         screen.configure_surface();
 
-        let ball = Ball::new(1.0);
-        let planet_1 = GraphicsGeometry::new(
-            Box::new(ball), 
-            (0.0, 0.0, 0.0), // identity rotation
-            1.0, 
-            Point3::new((ORIGIN_POS[0]+10.0) as f64, ORIGIN_POS[1] as f64, ORIGIN_POS[2] as f64)
-        );
-        let planet_1 = Planet { geom_obj: planet_1, texture: 0 };
-        let ball = Ball::new(1.0);
-        let planet_2 = GraphicsGeometry::new(
-            Box::new(ball), 
-            (0.0, 0.0, 0.0), // identity rotation
-            1.0, 
-            Point3::new((ORIGIN_POS[0]+5.0) as f64, ORIGIN_POS[1] as f64, ORIGIN_POS[2] as f64)
-        );
-        let planet_2 = Planet { geom_obj: planet_2, texture: 0 };
 
         let mut gtools = GraphicsTools::default();
 
         let mut state = StatePlanets { 
             screen, 
-            planets: vec![planet_1, planet_2], 
+            planets: Self::load_planets(), 
             resources: resources.clone(), 
             gtools 
         };
@@ -256,7 +285,7 @@ impl StatePlanets {
         for planet in &mut self.planets {
             let ball = &mut planet.geom_obj;
             let mut coord = Coord::new_cartesian(ball.center.x, ball.center.y, ball.center.z);
-            coord.set_spherical(coord.r, coord.azimuth + PI / 100.0, coord.elevation);
+            coord.set_spherical(coord.r, coord.azimuth + planet.angle_speed as f64, coord.elevation);
             ball.center = Point3::new(coord.x, coord.y, coord.z);
         }
         self.init();
