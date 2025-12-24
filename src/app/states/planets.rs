@@ -319,12 +319,55 @@ impl StatePlanets {
         }
     }
 
+    fn create_entity_for_planet(&self, planet_index: usize) -> Entity {
+        let planet = &self.planets[planet_index];
+        
+        // Получаем mesh только для одной планеты
+        let mesh_surface = planet.geom_obj.get_surface();
+        let mesh_edges = planet.geom_obj.get_edges(0.01);
+        
+        // Преобразуем в вершины и индексы
+        let (vertices_s, indices_s) = Self::transform_mesh_to_vertices_indices(
+            mesh_surface, 
+            wgpu::Color{r:0.0, g:1.0, b:1.0, a:1.0}
+        );
+        let (vertices_e, indices_e) = Self::transform_mesh_to_vertices_indices(
+            mesh_edges, 
+            wgpu::Color{r:1.0, g:0.0, b:1.0, a:1.0}
+        );
+        
+        let length_s = vertices_s.len() as u16;
+        let vertices: Vec<Vertex> = [vertices_s, vertices_e].concat();
+        let indices: Vec<u16> = indices_s
+            .iter()
+            .cloned()
+            .chain(indices_e.iter().map(|&x| x + length_s))
+            .collect();
+        
+        let v_buf = self.resources.buffer_fabric.create_vertex_buffer_init(&vertices, None);
+        let i_buf = self.resources.buffer_fabric.create_index_buffer_init(&indices, None);
+        
+        Entity {
+            mx_world: glam::Mat4::IDENTITY, // Это больше не используется в вашем шейдере
+            color: wgpu::Color::WHITE,
+            vertex_buf: v_buf,
+            index_buf: i_buf,
+            index_format: wgpu::IndexFormat::Uint16,
+            index_count: indices.len(),
+            uniform_offset: 0
+        }
+    }
+
+
     pub fn init(&mut self) {
         self.gtools.init(self.resources.clone());
 
         self.gtools.entities = Vec::new();
-        let entity = self.create_entity(wgpu::Color::WHITE);
-        self.gtools.push_entity(entity);
+        for i in 0..self.planets.len() {
+            let entity = self.create_entity_for_planet(i);
+            self.gtools.push_entity(entity);
+        }
+
 
         let bind_group_layout = self.resources.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
