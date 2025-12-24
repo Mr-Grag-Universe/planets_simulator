@@ -4,13 +4,15 @@
             "name": "Earth",
             "days_in_year": 365,
             "R_au": 1.0,
-            "radius": 1.0
+            "radius": 1.0,
+            "texture_path": "src/app/states/assets/2k_earth_daymap.jpg"
         },
         {
             "name": "Mars",
             "days_in_year": 687,
             "R_au": 1.5235,
-            "radius": 0.532
+            "radius": 0.532,
+            "texture_path": "src/app/states/assets/2k_mars.jpg"
         }
     ]
 }
