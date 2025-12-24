@@ -1,6 +1,20 @@
 {
     "planets": [
         {
+            "name": "Mercury",
+            "days_in_year": 88,
+            "R_au": 0.466697,
+            "radius": 0.3829,
+            "texture_path": "src/app/states/assets/2k_mercury.jpg"
+        },
+        {
+            "name": "Venus",
+            "days_in_year": 224,
+            "R_au": 0.728213,
+            "radius": 0.9499,
+            "texture_path": "src/app/states/assets/2k_venus_atmosphere.jpg"
+        },
+        {
             "name": "Earth",
             "days_in_year": 365,
             "R_au": 1.0,
