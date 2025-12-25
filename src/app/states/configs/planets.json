@@ -5,28 +5,28 @@
             "days_in_year": 88,
             "R_au": 0.466697,
             "radius": 0.3829,
-            "texture_path": "src/app/states/assets/2k_mercury.jpg"
+            "texture_path": "src/app/states/assets/1k/mercury.jpg"
         },
         {
             "name": "Venus",
             "days_in_year": 224,
             "R_au": 0.728213,
             "radius": 0.9499,
-            "texture_path": "src/app/states/assets/2k_venus_atmosphere.jpg"
+            "texture_path": "src/app/states/assets/1k/venus_atmosphere.jpg"
         },
         {
             "name": "Earth",
             "days_in_year": 365,
             "R_au": 1.0,
             "radius": 1.0,
-            "texture_path": "src/app/states/assets/2k_earth_daymap.jpg"
+            "texture_path": "src/app/states/assets/1k/earth_day.jpg"
         },
         {
             "name": "Mars",
             "days_in_year": 687,
             "R_au": 1.5235,
             "radius": 0.532,
-            "texture_path": "src/app/states/assets/2k_mars.jpg"
+            "texture_path": "src/app/states/assets/1k/mars.jpg"
         }
     ]
 }
