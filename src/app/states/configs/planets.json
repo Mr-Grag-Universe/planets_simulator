@@ -2,31 +2,53 @@
     "planets": [
         {
             "name": "Mercury",
-            "days_in_year": 88,
+            "year_dur_re": 88,
             "R_au": 0.466697,
-            "radius": 0.3829,
-            "texture_path": "src/app/states/assets/1k/mercury.jpg"
+            "radius_re": 0.3829,
+            "texture_path": "src/app/states/assets/1k/mercury.jpg",
+            "move_direction": "cw",
+            "day_dur_re": 58.646,
+            "is_giant": false
         },
         {
             "name": "Venus",
-            "days_in_year": 224,
+            "year_dur_re": 224,
             "R_au": 0.728213,
-            "radius": 0.9499,
-            "texture_path": "src/app/states/assets/1k/venus_atmosphere.jpg"
+            "radius_re": 0.9499,
+            "texture_path": "src/app/states/assets/1k/venus_atmosphere.jpg",
+            "move_direction": "ccw",
+            "day_dur_re": 243.0,
+            "is_giant": false
         },
         {
             "name": "Earth",
-            "days_in_year": 365,
+            "year_dur_re": 365,
             "R_au": 1.0,
-            "radius": 1.0,
-            "texture_path": "src/app/states/assets/1k/earth_day.jpg"
+            "radius_re": 1.0,
+            "texture_path": "src/app/states/assets/1k/earth_day.jpg",
+            "move_direction": "cw",
+            "day_dur_re": 1.0,
+            "is_giant": false
         },
         {
             "name": "Mars",
-            "days_in_year": 687,
+            "year_dur_re": 687,
             "R_au": 1.5235,
-            "radius": 0.532,
-            "texture_path": "src/app/states/assets/1k/mars.jpg"
+            "radius_re": 0.532,
+            "texture_path": "src/app/states/assets/1k/mars.jpg",
+            "move_direction": "cw",
+            "day_dur_re": 1.027,
+            "is_giant": false
+        },
+        {
+            "name": "Jupiter",
+            "year_dur_re": 4329,
+            "R_au": 5.2,
+            "radius_re": 11.2,
+            "texture_path": "src/app/states/assets/1k/jupiter.jpg",
+            "move_direction": "cw",
+            "day_dur_re": 0.4135,
+            "is_giant": true
         }
     ]
 }

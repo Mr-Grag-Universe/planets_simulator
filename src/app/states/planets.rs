@@ -24,10 +24,13 @@ use image::GenericImageView;
 #[derive(Debug, serde::Deserialize)]
 struct json_Planet {
     name: String,
-    days_in_year: u32,
+    year_dur_re: u32,
     R_au: f64,
-    radius: f64,
+    radius_re: f64,
     texture_path: String,
+    move_direction: String,
+    day_dur_re: f64,
+    is_giant: bool
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -99,14 +102,15 @@ fn load_config(file_path: &str) -> Result<json_Config, Box<dyn Error>> {
 
 
 const ORIGIN_POS: [f32; 3] = [0.0, 0.0, 0.0];
-const R: f32 = 10.0;
-const BASE_ANGLE_SPEED: f32 = PI as f32 / 100.0;
+const BASE_ANGLE_SPEED: f32 = PI as f32 / 40.0;
+const R: f32 = 100.0;
+const PLANET_RADIUS: f64 = 2.0;
 
 
 pub fn generate_transform(aspect_ratio: f32) -> glam::Mat4 {
-    let projection = glam::Mat4::perspective_rh(PI as f32 / 4.0, aspect_ratio, 1.0, 100.0);
+    let projection = glam::Mat4::perspective_rh(PI as f32 / 4.0, aspect_ratio, 1.0, -1.0);
     let view = glam::Mat4::look_at_rh(
-        glam::Vec3::new(20.0, 10.0, 20.0),
+        glam::Vec3::new(R*6.0, R*4.0, R*6.0),
         glam::Vec3::ZERO,
         glam::Vec3::Z,
     );
@@ -156,8 +160,6 @@ struct GraphicsTools {
     bind_group_layout: Option<wgpu::BindGroupLayout>,
 
     uniform_buf: Option<wgpu::Buffer>,
-    uniform_buf_flag_true: Option<wgpu::Buffer>,
-    uniform_buf_flag_false: Option<wgpu::Buffer>,
 
     entities: Vec<Entity>,
 }
@@ -240,17 +242,25 @@ impl StatePlanets {
             planet_textures.push(texture_view);
 
             let ball = Ball::new(1.0);
+            let mut scale = json_planet.radius_re;
+            if json_planet.is_giant {
+                scale = scale.sqrt();
+            }
+            scale *=  PLANET_RADIUS;
             let planet = GraphicsGeometry::new(
                 Box::new(ball), 
                 (0.0, 0.0, 0.0), // identity rotation
-                json_planet.radius, 
+                scale, 
                 Point3::new((ORIGIN_POS[0] + (R*json_planet.R_au as f32)) as f64, ORIGIN_POS[1] as f64, ORIGIN_POS[2] as f64)
             );
-            let planet = Planet { 
+            let mut planet = Planet { 
                 geom_obj: planet, 
                 texture: 0, 
-                angle_speed: BASE_ANGLE_SPEED * 365.0 / json_planet.days_in_year as f32 
+                angle_speed: BASE_ANGLE_SPEED * 365.0 / json_planet.year_dur_re as f32 
             };
+            if json_planet.move_direction == "ccw" {
+                planet.angle_speed *= -1.0;
+            }
             planets.push(planet);
         }
 
@@ -361,12 +371,7 @@ impl StatePlanets {
 
     pub fn init(&mut self) {
         self.gtools.init(self.resources.clone());
-
-        self.gtools.entities = Vec::new();
-        for i in 0..self.planets.len() {
-            let entity = self.create_entity_for_planet(i);
-            self.gtools.push_entity(entity);
-        }
+        self.init_entities();
 
 
         let bind_group_layout = self.resources.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -457,22 +462,9 @@ impl StatePlanets {
             ],
         }];
 
-        
-        // let bind_group = self.screen.resources.device.create_bind_group(&wgpu::BindGroupDescriptor {
-        //     layout: &bind_group_layout.clone(),
-        //     entries: &[
-        //         wgpu::BindGroupEntry {
-        //             binding: 0,
-        //             resource: self.gtools.uniform_buf.clone().unwrap().as_entire_binding(),
-        //         },
-        //     ],
-        //     label: None,
-        // });
-
         let shader = self.resources.device.create_shader_module(wgpu::include_wgsl!("shaders/planets.wgsl"));
         
         self.gtools.set_pipeline_layout(pipeline_layout);
-        // self.gtools.set_bind_group(bind_group);
         self.gtools.set_bind_group_layout(bind_group_layout);
         self.gtools.bind_groups = Some(self.create_bind_groups_for_planets(self.gtools.bind_group_layout.as_ref().unwrap()));
         self.gtools.init_pipeline(shader, &vertex_buffers, &[Some(self.screen.surface.get_format().into())]);
@@ -515,7 +507,15 @@ impl StatePlanets {
             coord.set_spherical(coord.r, coord.azimuth + planet.angle_speed as f64, coord.elevation);
             ball.center = Point3::new(coord.x, coord.y, coord.z);
         }
-        self.init();
+        self.init_entities();
+    }
+
+    fn init_entities(&mut self) {
+        self.gtools.entities = Vec::new();
+        for i in 0..self.planets.len() {
+            let entity = self.create_entity_for_planet(i);
+            self.gtools.push_entity(entity);
+        }
     }
 
     fn transform_mesh_to_vertices_indices(mesh: Mesh, color: wgpu::Color) -> (Vec<Vertex>, Vec<u16>) {
@@ -705,11 +705,6 @@ impl GraphicsTools {
             rpass.push_debug_group("Prepare data for draw.");
             rpass.set_pipeline(&self.pipeline.as_ref().unwrap());
 
-            // rpass.set_bind_group(0, &self.bind_group, &[]);
-            // rpass.set_index_buffer(self.entities[0].index_buf.slice(..), wgpu::IndexFormat::Uint16);
-            // rpass.set_vertex_buffer(0, self.entities[0].vertex_buf.slice(..));
-            // rpass.draw_indexed(0..self.entities[0].index_count as u32, 0, 0..1);
-
             for (i, entity) in self.entities.iter().enumerate() {
                 if let Some(bind_group) = self.bind_groups.as_ref().unwrap().get(i) {
                     rpass.set_bind_group(0, bind_group, &[]);
@@ -743,8 +738,6 @@ impl Default for GraphicsTools {
             bind_group_layout: None,
 
             uniform_buf: None,
-            uniform_buf_flag_true: None,
-            uniform_buf_flag_false: None,
         }
     }
 }
